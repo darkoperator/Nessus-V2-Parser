@@ -52,7 +52,7 @@ optparse = OptionParser.new do |opts|
     opts.on('--show-reports', 'Shows Server Reports') do
       options[:showrpt] = true
     end
-    opts.on('--get-report RPTID', 'Download Report and Export to IVIL') do |rpt|
+    opts.on('--get-report RPTID', 'Download Report and Export') do |rpt|
         options[:rptid] = rpt
     end
     case ARGV.length
