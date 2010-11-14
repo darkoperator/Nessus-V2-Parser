@@ -114,37 +114,7 @@ class NessusXMLStreamParser
         'netbios_name' => nil,
         'mac' => nil,
         'os' => nil,
-        'report_item' => {
-          'port' => nil,
-          'svc_name'  => nil,
-          'proto' => nil,
-          'severity' => nil,
-          'nasl' => nil,
-          'plugin_name' => nil,
-          'plugin_family' => nil,
-          'solution' => nil,
-          'risk_factor' => nil,
-          'description' => nil,
-          'plugin_publication_date' => nil,
-          'plugin_modification_date' => nil,
-          'patch_publication_date' => nil,
-          'metasploit_name' => nil,
-          'exploit_framework_metasploit' => nil,
-          'vuln_publication_date' => nil,
-          'synopsis' => nil,
-          'plugin_output' => nil,
-          'plugin_version' => nil,
-          'cvss_vector' => nil,
-          'cvss_base_score' => nil,
-          'cvss_temporal_vector' => nil,
-          'cvss_temporal_score' => nil,
-          'exploit_available' => nil,
-          'exploitability_ease' => nil,
-          'see_also' => [],
-          'cve' => [],
-          'bid' => [],
-          'xref' => [],
-          'msf' => nil }}
+        'report_item' => []}
       @state = :generic_state
     end
 
@@ -310,7 +280,7 @@ class NessusXMLStreamParser
           @report_item['bid'] = @bid
           @report_item['xref'] = @xref
           @report_item['see_also'] = @see_also
-          @host['report_item'] = @report_item
+          @host['report_item'].push(@report_item)
         end
         @state = :generic_state
     end
@@ -374,15 +344,27 @@ def parse_nessus(content, options)
     #          "Plugin Modification Date", "Patch Publication Date", "Metasploit Name", "Metasploit Exploit Available", "Vuln Publication Date", "Synopsis",
     #          "Plugin Output", "Plugin Version", "CVSS Vector", "CVSS Base Score", "CVSS Temporal Vector", "CVSS Temporal Score", "Exploit Available",
     #          "Exploitability Ease", "See Also", "CVE", "BID", "XREF"]
+    File.open("#{options[:out]}.csv", "w") do |csv|
+      header = ["Finding ID", "hostname", "IP Address", "Host Scan Start", "Host Scan End", "Host FQDN", "Netbios Name", "Mac Address", "Operating System",
+              "Port", "Service Name", "Plugin ID", "Plugin Name", "Plugin Family", "Solution", "Risk Factor", "Description", "Plugin Publication Date",
+              "Plugin Modification Date", "Patch Publication Date", "Metasploit Name", "Metasploit Exploit Available", "Vuln Publication Date", "Synopsis",
+              "Plugin Output", "Plugin Version", "CVSS Vector", "CVSS Base Score", "CVSS Temporal Vector", "CVSS Temporal Score", "Exploit Available",
+              "Exploitability Ease", "See Also", "CVE", "BID", "XREF"]
+      h =""
+      header.each do |x|
+		  x.gsub!(/"/,'\\\"') if x
+		  h << "\"#{x}\","
+              end
+      csv.puts(h)
       parser.on_found_host = Proc.new do |host|
-          p host
+	  # host
           #row = Array.new
           report_name = host['report_name']
           hname = host['hname']
           hname.gsub!(/[\n\r]/," or ") if hname
           addr = host['addr'] || host['hname']
           addr.gsub!(/[\n\r]/," or ") if addr
-          
+          host_start = host['host_start']
           os = host['os']
           os.gsub!(/[\n\r]/," or ") if os
           
@@ -392,27 +374,35 @@ def parse_nessus(content, options)
           mac.gsub!(/[\n\r]/," or ") if mac
           
           host['report_item'].each do |item|
+              unique = "#{addr}-#{item['nasl']}-#{item['port']}"
+              item['plugin_output'].gsub!(/"/,'\'') if item['plugin_output']
+              puts("#{item['plugin_output']}") if item['plugin_output'].to_s.include? '"'
               
+              bid = item['bid'].join(",")
+              xref = item['xref'].join(",")
+              see_also = item['see_also'].join(",")
               
+              cve = item['cve'].join(",")
+             row = Array.new
+              #print("#{addr} | #{os} | #{port} | Sev #{severity} \n")
+              row = ["#{unique}", "#{hname}", "#{addr}", "#{host_start}", "#{host['host_end']}",
+                      "#{host['host_end']}", "#{host['host_end']}", "#{mac}", "#{os}", "#{item['port']}", "#{item['svc_name']}", "#{item['nasl']}", "#{item['plugin_name']}",
+                      "#{item['plugin_family']}", "#{item['solution']}", "#{item['risk_factor']}", "#{item['description']}",
+                      "#{item['plugin_publication_date']}", "#{item['plugin_modification_date']}", "#{item['patch_publication_date']}",
+                      "#{item['metasploit_name']}", "#{item['exploit_framework_metasploit']}", "#{item['vuln_publication_date']}",
+                      "#{item['synopsis']}", "#{item['plugin_output']}", "#{item['plugin_version']}", "#{item['cvss_vector']}",
+                      "#{item['cvss_base_score']}", "#{item['cvss_temporal_vector']}", "#{item['cvss_temporal_score']}",
+                      "#{item['exploit_available']}", "#{item['exploitability_ease']}", "#{item['see_also']}", "#{cve}",
+                      "#{item['bid']}", "#{item['xref']}"]
+              txt = ""
+              row.each do |x|
+		  x.gsub!(/"/,'\'') if x
+		  x.gsub!(/,/,'\\,') if x
+		  txt << "\"#{x}\","
+              end
+              csv.puts(txt)
               
-              #item['cve'].i
-                
-              
-              
-          #   row = Array.new
-          #    #print("#{addr} | #{os} | #{port} | Sev #{severity} \n")
-          #    row << ["#{host['addr']}-#{item['port']}-#{item['nasl']}", "#{hname}", "#{addr}", "#{host['host_start']}", "#{host['host_end']}",
-          #            "#{host['host_end']}", "#{host['host_end']}", "#{mac}", "#{os}", "#{item['port']}", "#{item['nasl']}", "#{item['plugin_name']}",
-          #            "#{item['plugin_family']}", "#{item['solution']}", "#{item['risk_factor']}", "#{item['description']}",
-          #            "#{item['plugin_publication_date']}", "#{item['plugin_modification_date']}", "#{item['patch_publication_date']}",
-          #            "#{item['metasploit_name']}", "#{item['exploit_framework_metasploit']}", "#{item['vuln_publication_date']}",
-          #            "#{item['synopsis']}", "#{item['plugin_output']}", "#{item['plugin_version']}", "#{item['cvss_vector']}",
-          #            "#{item['cvss_base_score']}", "#{item['cvss_temporal_vector']}", "#{item['cvss_temporal_score']}",
-          #            "#{item['exploit_available']}", "#{item['exploitability_ease']}", "#{item['see_also']}", "#{cve}",
-          #            "#{item['bid']}", "#{item['xref']}"]
-          #    csv << row
-          #    
-          #end
+	    end
           
       end
       REXML::Document.parse_stream(content, parser)
