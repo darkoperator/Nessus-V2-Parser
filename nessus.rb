@@ -171,8 +171,6 @@ class NessusXMLStreamParser
           @state = :see_also
         when "solution"
           @state = :is_solution
-        when "metasploit_name"
-          @state = :msf
         when "risk_factor"
           @state = :risk_factor
         when "plugin_publication_date"
@@ -233,8 +231,6 @@ class NessusXMLStreamParser
           @xref.push str
         when :see_also
           @see_also.push str
-        when :msf
-          @report_item['msf'] = str
         when :risk_factor
           @report_item['risk_factor'] = str
         when :plugin_publication_date
@@ -344,6 +340,7 @@ def parse_nessus(content, options)
     #          "Plugin Modification Date", "Patch Publication Date", "Metasploit Name", "Metasploit Exploit Available", "Vuln Publication Date", "Synopsis",
     #          "Plugin Output", "Plugin Version", "CVSS Vector", "CVSS Base Score", "CVSS Temporal Vector", "CVSS Temporal Score", "Exploit Available",
     #          "Exploitability Ease", "See Also", "CVE", "BID", "XREF"]
+    print("[*] Generating #{options[:out]}.csv\n")
     File.open("#{options[:out]}.csv", "w") do |csv|
       header = ["Finding ID", "hostname", "IP Address", "Host Scan Start", "Host Scan End", "Host FQDN", "Netbios Name", "Mac Address", "Operating System",
               "Port", "Service Name", "Plugin ID", "Plugin Name", "Plugin Family", "Solution", "Risk Factor", "Description", "Plugin Publication Date",
@@ -356,6 +353,9 @@ def parse_nessus(content, options)
 		  h << "\"#{x}\","
               end
       csv.puts(h)
+      count = 0
+      
+      print("[*]")
       parser.on_found_host = Proc.new do |host|
 	  # host
           #row = Array.new
@@ -367,7 +367,22 @@ def parse_nessus(content, options)
           host_start = host['host_start']
           os = host['os']
           os.gsub!(/[\n\r]/," or ") if os
+          #print("\r\e")
           
+          case count
+            when 0
+              print("\b\b\b[|]")
+              count += 1
+            when 1
+              print("\b\b\b[/]")
+              count += 1
+            when 2
+              print("\b\b\b[-]")
+              count += 1
+            when 3
+              print("\b\b\b[\\]")
+              count =0
+          end
           
           
           mac = host['mac']
@@ -378,11 +393,12 @@ def parse_nessus(content, options)
               item['plugin_output'].gsub!(/"/,'\'') if item['plugin_output']
               puts("#{item['plugin_output']}") if item['plugin_output'].to_s.include? '"'
               
-              bid = item['bid'].join(",")
-              xref = item['xref'].join(",")
-              see_also = item['see_also'].join(",")
+              bid = item['bid'].join("|")
+              xref = item['xref'].join("|")
+              see_also = item['see_also'].join("|")
               
-              cve = item['cve'].join(",")
+              cve = item['cve'].join("|")
+              
              row = Array.new
               #print("#{addr} | #{os} | #{port} | Sev #{severity} \n")
               row = ["#{unique}", "#{hname}", "#{addr}", "#{host_start}", "#{host['host_end']}",
@@ -392,12 +408,16 @@ def parse_nessus(content, options)
                       "#{item['metasploit_name']}", "#{item['exploit_framework_metasploit']}", "#{item['vuln_publication_date']}",
                       "#{item['synopsis']}", "#{item['plugin_output']}", "#{item['plugin_version']}", "#{item['cvss_vector']}",
                       "#{item['cvss_base_score']}", "#{item['cvss_temporal_vector']}", "#{item['cvss_temporal_score']}",
-                      "#{item['exploit_available']}", "#{item['exploitability_ease']}", "#{item['see_also']}", "#{cve}",
-                      "#{item['bid']}", "#{item['xref']}"]
+                      "#{item['exploit_available']}", "#{item['exploitability_ease']}", "#{see_also}", "#{cve}",
+                      "#{bid}", "#{xref}"]
               txt = ""
               row.each do |x|
-		  x.gsub!(/"/,'\'') if x
-		  x.gsub!(/,/,'\\,') if x
+		  x.gsub!(/"/,'""') if x
+		  #x.gsub!(/,/,'\\,') if x
+#		  if (addr == "10.1.3.200" and item['nasl'] == "22869")
+#                    p x
+#                  end
+                  x[0..32000]
 		  txt << "\"#{x}\","
               end
               csv.puts(txt)
@@ -406,7 +426,7 @@ def parse_nessus(content, options)
           
       end
       REXML::Document.parse_stream(content, parser)
-    
+    print("\b\b\b[*]\n[*] Done\n")
     end
 end
 
@@ -465,13 +485,15 @@ def show_reports(options)
 end
 
 def get_report(options)
+  print("[*] Starting\n")
     file = nil
     uri = "file/report/download"
     post_data = { "token" => @token, "report" => options[:rptid]  }
     stuff = @n.connect(uri, post_data)
     if options[:out]
+      
       File.open("#{options[:out]}.nessus", 'w') {|f| f.write(stuff) }
-      puts("#{options[:out]} written.")
+      puts("[*] #{options[:out]}.nessus saved")
       parse_nessus(stuff, options)
       exit
     end
